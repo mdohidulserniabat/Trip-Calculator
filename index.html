@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Bus Trip Hisab - Trip Name Only</title>
+<title>Bus Trip Hisab - Complete Working Version</title>
 
 <style>
 body{
@@ -166,6 +166,7 @@ textarea,input{
   display:flex;
   gap:10px;
   margin-top:20px;
+  flex-wrap:wrap;
 }
 
 .help-box{
@@ -205,9 +206,24 @@ textarea,input{
 }
 .format-examples strong{color:#f57c00}
 
+.history-stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-bottom:20px;
+}
+.history-stat{
+  background:#f5f5f5;
+  padding:15px;
+  border-radius:8px;
+  text-align:center;
+}
+.history-stat h4{margin:0;color:#666;font-size:14px}
+.history-stat div{font-size:24px;font-weight:bold;color:#1976d2}
+
 @media(max-width:1000px){
-  .stats,.lists,.export-options{grid-template-columns:1fr}
-  .stats{grid-template-columns:repeat(2,1fr)}
+  .stats,.lists,.export-options,.history-stats{grid-template-columns:1fr}
+  .stats,.history-stats{grid-template-columns:repeat(2,1fr)}
 }
 </style>
 
@@ -222,7 +238,7 @@ textarea,input{
 <body>
 <div class="container">
 
-<h1>🚌 Bus Trip Hisab - Trip Name Only</h1>
+<h1>🚌 Bus Trip Hisab - Working Version</h1>
 <div class="date">Today: <span id="today"></span></div>
 
 <!-- Date Navigation -->
@@ -306,20 +322,9 @@ SP 93-SWK-GBT 04.01am Route Dhaka-barishal-bakerganj-patuakhali-amtoli-khepupara
       <strong>📋 Input Examples:</strong><br>
       • <code>89-BDA-CGA 04.01am Route Dhaka-barishal...</code><br>
       • <code>43-CHA-KAU 04.01am Route Dhaka-barishal...</code><br>
-      • <code>SP 93-SWK-GBT 04.01am Route Dhaka-barishal...</code><br>
       <strong>→ Output (trip name only):</strong><br>
       • <code>89-BDA-CGA</code><br>
-      • <code>43-CHA-KAU</code><br>
-      • <code>SP 93-SWK-GBT</code>
-    </div>
-    
-    <div class="help-box">
-      <strong>✅ How it works:</strong><br>
-      1. Paste any text with trip codes<br>
-      2. Tool extracts ONLY trip names<br>
-      3. Removes time, route, and other info<br>
-      4. Stores only trip codes like <code>89-BDA-CGA</code><br>
-      5. All other information is discarded
+      • <code>43-CHA-KAU</code>
     </div>
   </div>
 
@@ -333,15 +338,36 @@ SP 93-SWK-GBT 04.01am Route Dhaka-barishal-bakerganj-patuakhali-amtoli-khepupara
 <!-- History Panel -->
 <div id="historyPanel" class="history-panel">
   <div class="card">
-    <strong>Trip History by Date</strong>
+    <strong>All Trip History</strong>
+    
+    <div class="history-stats">
+      <div class="history-stat">
+        <h4>Total Dates</h4>
+        <div id="historyDateCount">0</div>
+      </div>
+      <div class="history-stat">
+        <h4>Total Jor Trips</h4>
+        <div id="historyJorCount">0</div>
+      </div>
+      <div class="history-stat">
+        <h4>Total Bijor Trips</h4>
+        <div id="historyBijorCount">0</div>
+      </div>
+    </div>
+    
     <div id="historyList"></div>
+    
+    <div style="text-align:center;margin-top:20px;">
+      <button onclick="refreshHistory()" style="background:#1976d2;color:white;">🔄 Refresh History</button>
+    </div>
   </div>
 </div>
 
 <!-- Export Panel -->
 <div id="exportPanel" class="history-panel">
   <div class="card">
-    <strong>Export Options</strong>
+    <strong>Export Trip Data</strong>
+    
     <div class="export-options">
       <button class="export-btn" onclick="exportToExcel()">📊 Export to Excel</button>
       <button class="export-btn" onclick="exportToPDF()">📄 Export to PDF</button>
@@ -350,12 +376,23 @@ SP 93-SWK-GBT 04.01am Route Dhaka-barishal-bakerganj-patuakhali-amtoli-khepupara
     
     <div style="margin-top:20px;">
       <strong>Export Range:</strong>
-      <div style="display:flex;gap:10px;margin-top:10px;">
-        <input type="date" id="exportFrom" style="flex:1;">
-        <span>to</span>
-        <input type="date" id="exportTo" style="flex:1;">
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <input type="date" id="exportFrom" style="flex:1;min-width:150px;">
+        <span style="line-height:40px;">to</span>
+        <input type="date" id="exportTo" style="flex:1;min-width:150px;">
         <button onclick="setExportRange('all')">All Time</button>
         <button onclick="setExportRange('month')">This Month</button>
+        <button onclick="setExportRange('today')">Today Only</button>
+      </div>
+    </div>
+    
+    <div style="margin-top:20px;background:#f5f5f5;padding:15px;border-radius:8px;">
+      <strong>📊 Current Data Summary:</strong>
+      <div style="margin-top:10px;">
+        <div>Total Dates: <span id="exportDateCount">0</span></div>
+        <div>Total Jor Trips: <span id="exportJorCount">0</span></div>
+        <div>Total Bijor Trips: <span id="exportBijorCount">0</span></div>
+        <div>Overall Total: <span id="exportTotalCount">0</span></div>
       </div>
     </div>
   </div>
@@ -408,8 +445,14 @@ function showStatus(message, isError = false) {
 }
 
 // Load data from localStorage
-let data = JSON.parse(localStorage.getItem("tripDataClean")) || {};
+let data = JSON.parse(localStorage.getItem("tripDataFinal")) || {};
 let currentViewDate = today;
+
+// Initialize if no data
+if (Object.keys(data).length === 0) {
+  data[today] = { jor: [], bijor: [] };
+  save();
+}
 
 // Update display
 updateDateDisplay();
@@ -434,15 +477,17 @@ function updateDateDisplay() {
   
   render();
   updateHistoryPanel();
+  updateExportStats();
 }
 
 function save() {
-  localStorage.setItem("tripDataClean", JSON.stringify(data));
+  localStorage.setItem("tripDataFinal", JSON.stringify(data));
 }
 
 function getAllTimeStats() {
   let totalJor = 0;
   let totalBijor = 0;
+  let totalDates = Object.keys(data).length;
   
   Object.keys(data).forEach(date => {
     totalJor += data[date].jor.length;
@@ -450,18 +495,17 @@ function getAllTimeStats() {
   });
   
   return {
+    dates: totalDates,
     jor: totalJor,
     bijor: totalBijor,
     total: totalJor + totalBijor
   };
 }
 
-// SIMPLIFIED: Extract ONLY trip name
+// Extract ONLY trip name
 function extractTripCode(text) {
-  // Remove leading/trailing whitespace
   text = text.trim();
   
-  // Check for SP prefix
   let hasSP = false;
   let cleanedText = text;
   
@@ -470,8 +514,6 @@ function extractTripCode(text) {
     cleanedText = text.substring(3).trim();
   }
   
-  // Find trip code pattern: digits-letters-letters
-  // Flexible length: 89-BDA-CGA or 43-CHA-KAU or SP 93-SWK-GBT
   const tripCodeMatch = cleanedText.match(/(\d{2}-[A-Z]+-[A-Z]+)/i);
   
   if (!tripCodeMatch) {
@@ -490,7 +532,6 @@ function addTrip(text) {
     return false;
   }
   
-  // Get the number from the code
   const numMatch = tripCode.match(/(\d{2})/);
   
   if (!numMatch) {
@@ -501,18 +542,16 @@ function addTrip(text) {
   const num = parseInt(numMatch[1]);
   const side = num % 2 === 0 ? "jor" : "bijor";
   
-  // Check if already exists
-  const exists = data[currentViewDate][side].includes(tripCode);
-  
-  if (!exists) {
-    data[currentViewDate][side].push(tripCode);
-    save();
-    showStatus(`✅ Added: ${tripCode} (${side})`);
-    return true;
+  if (data[currentViewDate][side].includes(tripCode)) {
+    showStatus(`⚠️ Already exists: ${tripCode}`, true);
+    return false;
   }
   
-  showStatus(`⚠️ Already exists: ${tripCode}`, true);
-  return false;
+  data[currentViewDate][side].push(tripCode);
+  save();
+  showStatus(`✅ Added: ${tripCode} (${side})`);
+  render();
+  return true;
 }
 
 function processBulk() {
@@ -528,7 +567,7 @@ function processBulk() {
   let duplicates = 0;
   let errors = 0;
   
-  lines.forEach((line, index) => {
+  lines.forEach((line) => {
     const trimmedLine = line.trim();
     if (trimmedLine) {
       const tripCode = extractTripCode(trimmedLine);
@@ -562,11 +601,10 @@ function processBulk() {
   
   bulkInput.value = "";
   
-  // Show results
   let resultMessage = `📊 Processed ${lines.length} lines:\n`;
   if (added > 0) resultMessage += `✅ ${added} trips added\n`;
   if (duplicates > 0) resultMessage += `⚠️ ${duplicates} duplicates skipped\n`;
-  if (errors > 0) resultMessage += `❌ ${errors} lines ignored (no valid trip code)\n`;
+  if (errors > 0) resultMessage += `❌ ${errors} lines ignored\n`;
   
   showStatus(resultMessage, errors === lines.length);
 }
@@ -580,31 +618,8 @@ function addSingle() {
     return;
   }
   
-  const tripCode = extractTripCode(text);
-  
-  if (!tripCode) {
-    showStatus(`❌ Cannot find trip code in: "${text}"`, true);
-    return;
-  }
-  
-  const numMatch = tripCode.match(/(\d{2})/);
-  
-  if (!numMatch) {
-    showStatus(`❌ Cannot extract number from: "${tripCode}"`, true);
-    return;
-  }
-  
-  const num = parseInt(numMatch[1]);
-  const side = num % 2 === 0 ? "jor" : "bijor";
-  
-  if (data[currentViewDate][side].includes(tripCode)) {
-    showStatus(`⚠️ Trip "${tripCode}" already exists!`, true);
-  } else {
-    data[currentViewDate][side].push(tripCode);
-    save();
-    render();
+  if (addTrip(text)) {
     singleInput.value = "";
-    showStatus(`✅ Added: ${tripCode} (${side})`);
   }
 }
 
@@ -687,7 +702,6 @@ function render() {
   const jorList = document.getElementById("jorList");
   const bijorList = document.getElementById("bijorList");
   
-  // Sort trips
   const jorTrips = data[currentViewDate].jor.sort();
   const bijorTrips = data[currentViewDate].bijor.sort();
   
@@ -708,17 +722,29 @@ function render() {
   document.getElementById("bijorCount").innerText = bijorTrips.length;
   document.getElementById("totalCount").innerText = jorTrips.length + bijorTrips.length;
   
-  // Update all-time stats
   const allTime = getAllTimeStats();
   document.getElementById("allTimeCount").innerText = allTime.total;
 }
 
+// FIXED: History Panel Function
 function updateHistoryPanel() {
   const historyList = document.getElementById("historyList");
   const dates = Object.keys(data).sort().reverse();
   
+  // Update history stats
+  const stats = getAllTimeStats();
+  document.getElementById("historyDateCount").innerText = stats.dates;
+  document.getElementById("historyJorCount").innerText = stats.jor;
+  document.getElementById("historyBijorCount").innerText = stats.bijor;
+  
   if (dates.length === 0) {
-    historyList.innerHTML = "<p>No trip history available.</p>";
+    historyList.innerHTML = `
+      <div style="text-align:center;padding:40px;color:#666;">
+        <div style="font-size:48px;">📭</div>
+        <h3>No Trip History</h3>
+        <p>Add some trips to see history here</p>
+      </div>
+    `;
     return;
   }
   
@@ -739,25 +765,50 @@ function updateHistoryPanel() {
           <span>${formatDateDisplay(date)}</span>
           <span>Total: ${total} trips</span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
           <div>
-            <strong>Jor:</strong> ${jorCount} trips
-            <div style="font-size:12px;color:#555;margin-top:5px;">
-              ${jorCodes}
+            <div><strong>Jor:</strong> ${jorCount} trips</div>
+            <div style="font-size:12px;color:#555;margin-top:5px;background:#e3f2fd;padding:5px;border-radius:4px;">
+              ${jorCodes || 'No jor trips'}
             </div>
           </div>
           <div>
-            <strong>Bijor:</strong> ${bijorCount} trips
-            <div style="font-size:12px;color:#555;margin-top:5px;">
-              ${bijorCodes}
+            <div><strong>Bijor:</strong> ${bijorCount} trips</div>
+            <div style="font-size:12px;color:#555;margin-top:5px;background:#fff3e0;padding:5px;border-radius:4px;">
+              ${bijorCodes || 'No bijor trips'}
             </div>
           </div>
+        </div>
+        <div style="margin-top:10px;text-align:right;">
+          <button onclick="viewDate('${date}')" style="font-size:12px;padding:4px 8px;">View This Date</button>
         </div>
       </div>
     `;
   });
   
   historyList.innerHTML = html;
+}
+
+function viewDate(date) {
+  currentViewDate = date;
+  datePicker.value = date;
+  switchTab('today');
+  updateDateDisplay();
+  showStatus(`Viewing trips for ${date}`);
+}
+
+function refreshHistory() {
+  updateHistoryPanel();
+  showStatus("History refreshed");
+}
+
+// FIXED: Export Stats Function
+function updateExportStats() {
+  const stats = getAllTimeStats();
+  document.getElementById("exportDateCount").innerText = stats.dates;
+  document.getElementById("exportJorCount").innerText = stats.jor;
+  document.getElementById("exportBijorCount").innerText = stats.bijor;
+  document.getElementById("exportTotalCount").innerText = stats.total;
 }
 
 // Date navigation
@@ -822,8 +873,9 @@ datePicker.addEventListener('change', function() {
   updateDateDisplay();
 });
 
-// Tab switching
+// Tab switching - FIXED
 function switchTab(tabName) {
+  // Update tab active states
   document.querySelectorAll('.tab').forEach(tab => {
     tab.classList.remove('active');
   });
@@ -832,24 +884,42 @@ function switchTab(tabName) {
     panel.classList.remove('active');
   });
   
-  event.target.classList.add('active');
+  // Find and activate the clicked tab
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(tab => {
+    if (tab.textContent.includes(tabName === 'today' ? "Today's Trips" : 
+                                 tabName === 'history' ? "All History" : 
+                                 "Export Data")) {
+      tab.classList.add('active');
+    }
+  });
+  
   document.getElementById(tabName + 'Panel').classList.add('active');
+  
+  // Refresh data when switching to these tabs
+  if (tabName === 'history') {
+    updateHistoryPanel();
+  } else if (tabName === 'export') {
+    updateExportStats();
+  }
 }
 
-// Export functions
+// Export functions - FIXED
 function setExportRange(rangeType) {
-  const today = new Date();
-  
   if (rangeType === 'all') {
     const dates = Object.keys(data).sort();
-    exportFrom.value = dates.length > 0 ? dates[0] : today.toISOString().split("T")[0];
-    exportTo.value = today.toISOString().split("T")[0];
+    exportFrom.value = dates.length > 0 ? dates[0] : today;
+    exportTo.value = today;
     showStatus("Export range set to all dates");
   } else if (rangeType === 'month') {
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
+    const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString().split("T")[0];
     exportFrom.value = firstDay;
-    exportTo.value = today.toISOString().split("T")[0];
+    exportTo.value = today;
     showStatus("Export range set to this month");
+  } else if (rangeType === 'today') {
+    exportFrom.value = today;
+    exportTo.value = today;
+    showStatus("Export range set to today only");
   }
 }
 
@@ -865,7 +935,10 @@ function getDataForExport() {
     .filter(date => date >= fromDate && date <= toDate)
     .sort()
     .forEach(date => {
-      result[date] = data[date];
+      result[date] = {
+        jor: data[date].jor,
+        bijor: data[date].bijor
+      };
       totalJor += data[date].jor.length;
       totalBijor += data[date].bijor.length;
     });
@@ -882,184 +955,198 @@ function getDataForExport() {
   };
 }
 
+// FIXED: Excel Export
 function exportToExcel() {
   const exportData = getDataForExport();
   const dates = Object.keys(exportData.data).sort();
   
   if (dates.length === 0) {
-    showStatus("No data to export for selected range!", true);
+    showStatus("❌ No data to export for selected range!", true);
     return;
   }
   
-  // Create workbook
-  const wb = XLSX.utils.book_new();
-  
-  // Create summary sheet
-  const summaryData = [
-    ["Bus Trip Export - Trip Names Only"],
-    ["Export Range:", `${exportData.summary.fromDate} to ${exportData.summary.toDate}`],
-    ["Total Jor Trips:", exportData.summary.totalJor],
-    ["Total Bijor Trips:", exportData.summary.totalBijor],
-    ["Total Trips:", exportData.summary.total],
-    [],
-    ["Date", "Jor Trips", "Bijor Trips", "Total"]
-  ];
-  
-  dates.forEach(date => {
-    const jorCount = exportData.data[date].jor.length;
-    const bijorCount = exportData.data[date].bijor.length;
-    summaryData.push([date, jorCount, bijorCount, jorCount + bijorCount]);
-  });
-  
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-  XLSX.utils.book_append_sheet(wb, summarySheet, "Summary");
-  
-  // Create separate sheets for each date
-  dates.forEach(date => {
-    const jorTrips = exportData.data[date].jor;
-    const bijorTrips = exportData.data[date].bijor;
+  try {
+    // Create workbook
+    const wb = XLSX.utils.book_new();
     
-    const sheetData = [
-      [`Trip Data for ${date} - Trip Names Only`],
+    // Create summary sheet
+    const summaryData = [
+      ["Bus Trip Export Summary"],
+      ["Export Range:", `${exportData.summary.fromDate} to ${exportData.summary.toDate}`],
+      ["Total Jor Trips:", exportData.summary.totalJor],
+      ["Total Bijor Trips:", exportData.summary.totalBijor],
+      ["Total Trips:", exportData.summary.total],
       [],
-      ["Jor Trips"]
+      ["Date", "Jor Trips", "Bijor Trips", "Total"]
     ];
     
-    jorTrips.forEach(trip => {
-      sheetData.push([trip]);
+    dates.forEach(date => {
+      const jorCount = exportData.data[date].jor.length;
+      const bijorCount = exportData.data[date].bijor.length;
+      summaryData.push([date, jorCount, bijorCount, jorCount + bijorCount]);
     });
     
-    sheetData.push([], ["Bijor Trips"]);
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, summarySheet, "Summary");
     
-    bijorTrips.forEach(trip => {
-      sheetData.push([trip]);
+    // Create separate sheets for each date
+    dates.forEach(date => {
+      const jorTrips = exportData.data[date].jor;
+      const bijorTrips = exportData.data[date].bijor;
+      
+      const sheetData = [
+        [`Trip Data for ${date}`],
+        [],
+        ["Jor Trips"],
+        ...jorTrips.map(trip => [trip]),
+        [],
+        ["Bijor Trips"],
+        ...bijorTrips.map(trip => [trip])
+      ];
+      
+      const dateSheet = XLSX.utils.aoa_to_sheet(sheetData);
+      const sheetName = date.substring(5).replace(/-/g, '_');
+      XLSX.utils.book_append_sheet(wb, dateSheet, sheetName);
     });
     
-    const dateSheet = XLSX.utils.aoa_to_sheet(sheetData);
-    const sheetName = date.replace(/-/g, '_').substring(0, 31);
-    XLSX.utils.book_append_sheet(wb, dateSheet, sheetName);
-  });
-  
-  // Save file
-  const fileName = `Bus_Trip_Names_${exportData.summary.fromDate}_to_${exportData.summary.toDate}.xlsx`;
-  XLSX.writeFile(wb, fileName);
-  showStatus(`✅ Excel file exported: ${fileName}`);
+    // Save file
+    const fileName = `Bus_Trips_${exportData.summary.fromDate}_to_${exportData.summary.toDate}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    showStatus(`✅ Excel file exported: ${fileName}`);
+  } catch (error) {
+    showStatus(`❌ Error exporting to Excel: ${error.message}`, true);
+    console.error("Excel export error:", error);
+  }
 }
 
+// FIXED: PDF Export
 function exportToPDF() {
   const exportData = getDataForExport();
   const dates = Object.keys(exportData.data).sort();
   
   if (dates.length === 0) {
-    showStatus("No data to export for selected range!", true);
+    showStatus("❌ No data to export for selected range!", true);
     return;
   }
   
-  const doc = new jsPDF();
-  let yPos = 20;
-  
-  doc.setFontSize(18);
-  doc.text("Bus Trip Names Report", 105, yPos, { align: "center" });
-  yPos += 15;
-  
-  doc.setFontSize(12);
-  doc.text(`Date Range: ${exportData.summary.fromDate} to ${exportData.summary.toDate}`, 20, yPos);
-  yPos += 8;
-  doc.text(`Total Jor Trips: ${exportData.summary.totalJor}`, 20, yPos);
-  yPos += 8;
-  doc.text(`Total Bijor Trips: ${exportData.summary.totalBijor}`, 20, yPos);
-  yPos += 8;
-  doc.text(`Overall Total: ${exportData.summary.total}`, 20, yPos);
-  yPos += 15;
-  
-  // Summary table
-  doc.autoTable({
-    startY: yPos,
-    head: [['Date', 'Jor Trips', 'Bijor Trips', 'Total']],
-    body: dates.map(date => {
-      const jorCount = exportData.data[date].jor.length;
-      const bijorCount = exportData.data[date].bijor.length;
-      return [date, jorCount, bijorCount, jorCount + bijorCount];
-    }),
-    theme: 'grid'
-  });
-  
-  // Detailed trip names for each date
-  dates.forEach(date => {
-    doc.addPage();
-    yPos = 20;
+  try {
+    const doc = new jsPDF();
+    let yPos = 20;
     
-    doc.setFontSize(16);
-    doc.text(`Trip Names for ${date}`, 105, yPos, { align: "center" });
+    // Title
+    doc.setFontSize(18);
+    doc.text("Bus Trip Report", 105, yPos, { align: "center" });
     yPos += 15;
     
-    const jorTrips = exportData.data[date].jor;
-    const bijorTrips = exportData.data[date].bijor;
+    // Summary
+    doc.setFontSize(12);
+    doc.text(`Date Range: ${exportData.summary.fromDate} to ${exportData.summary.toDate}`, 20, yPos);
+    yPos += 8;
+    doc.text(`Total Jor Trips: ${exportData.summary.totalJor}`, 20, yPos);
+    yPos += 8;
+    doc.text(`Total Bijor Trips: ${exportData.summary.totalBijor}`, 20, yPos);
+    yPos += 8;
+    doc.text(`Overall Total: ${exportData.summary.total}`, 20, yPos);
+    yPos += 15;
     
-    if (jorTrips.length > 0) {
-      doc.setFontSize(14);
-      doc.text(`Jor Trips (${jorTrips.length})`, 20, yPos);
-      yPos += 10;
-      
-      const jorTableData = jorTrips.map(trip => [trip]);
-      
-      doc.autoTable({
-        startY: yPos,
-        head: [['Trip Name']],
-        body: jorTableData,
-        theme: 'grid',
-        styles: { fontSize: 12 }
-      });
-      
-      yPos = doc.lastAutoTable.finalY + 10;
-    }
+    // Summary table
+    doc.autoTable({
+      startY: yPos,
+      head: [['Date', 'Jor Trips', 'Bijor Trips', 'Total']],
+      body: dates.map(date => {
+        const jorCount = exportData.data[date].jor.length;
+        const bijorCount = exportData.data[date].bijor.length;
+        return [date, jorCount, bijorCount, jorCount + bijorCount];
+      }),
+      theme: 'grid'
+    });
     
-    if (bijorTrips.length > 0) {
-      doc.setFontSize(14);
-      doc.text(`Bijor Trips (${bijorTrips.length})`, 20, yPos);
-      yPos += 10;
+    // Detailed trip lists
+    dates.forEach(date => {
+      doc.addPage();
+      yPos = 20;
       
-      const bijorTableData = bijorTrips.map(trip => [trip]);
+      doc.setFontSize(16);
+      doc.text(`Trips for ${date}`, 105, yPos, { align: "center" });
+      yPos += 15;
       
-      doc.autoTable({
-        startY: yPos,
-        head: [['Trip Name']],
-        body: bijorTableData,
-        theme: 'grid',
-        styles: { fontSize: 12 }
-      });
-    }
-  });
-  
-  const fileName = `Bus_Trip_Names_${exportData.summary.fromDate}_to_${exportData.summary.toDate}.pdf`;
-  doc.save(fileName);
-  showStatus(`✅ PDF file exported: ${fileName}`);
+      const jorTrips = exportData.data[date].jor;
+      const bijorTrips = exportData.data[date].bijor;
+      
+      if (jorTrips.length > 0) {
+        doc.setFontSize(14);
+        doc.text(`Jor Trips (${jorTrips.length})`, 20, yPos);
+        yPos += 10;
+        
+        const jorTableData = jorTrips.map(trip => [trip]);
+        
+        doc.autoTable({
+          startY: yPos,
+          head: [['Trip Name']],
+          body: jorTableData,
+          theme: 'grid',
+          styles: { fontSize: 11 }
+        });
+        
+        yPos = doc.lastAutoTable.finalY + 10;
+      }
+      
+      if (bijorTrips.length > 0) {
+        doc.setFontSize(14);
+        doc.text(`Bijor Trips (${bijorTrips.length})`, 20, yPos);
+        yPos += 10;
+        
+        const bijorTableData = bijorTrips.map(trip => [trip]);
+        
+        doc.autoTable({
+          startY: yPos,
+          head: [['Trip Name']],
+          body: bijorTableData,
+          theme: 'grid',
+          styles: { fontSize: 11 }
+        });
+      }
+    });
+    
+    const fileName = `Bus_Trips_${exportData.summary.fromDate}_to_${exportData.summary.toDate}.pdf`;
+    doc.save(fileName);
+    showStatus(`✅ PDF file exported: ${fileName}`);
+  } catch (error) {
+    showStatus(`❌ Error exporting to PDF: ${error.message}`, true);
+    console.error("PDF export error:", error);
+  }
 }
 
+// FIXED: JSON Export
 function exportAllData() {
-  const exportData = {
-    metadata: {
-      exportedAt: new Date().toISOString(),
-      totalDates: Object.keys(data).length,
-      note: "Trip names only - all other info discarded"
-    },
-    summary: getAllTimeStats(),
-    data: data
-  };
-  
-  const dataStr = JSON.stringify(exportData, null, 2);
-  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-  
-  const exportFileDefaultName = `Bus_Trip_Names_Export_${today}.json`;
-  
-  const linkElement = document.createElement('a');
-  linkElement.setAttribute('href', dataUri);
-  linkElement.setAttribute('download', exportFileDefaultName);
-  document.body.appendChild(linkElement);
-  linkElement.click();
-  document.body.removeChild(linkElement);
-  
-  showStatus(`✅ JSON file exported: ${exportFileDefaultName}`);
+  try {
+    const exportData = {
+      metadata: {
+        exportedAt: new Date().toISOString(),
+        totalDates: Object.keys(data).length,
+        version: "1.0"
+      },
+      summary: getAllTimeStats(),
+      data: data
+    };
+    
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `Bus_Trips_Full_Export_${today}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    document.body.appendChild(linkElement);
+    linkElement.click();
+    document.body.removeChild(linkElement);
+    
+    showStatus(`✅ JSON file exported: ${exportFileDefaultName}`);
+  } catch (error) {
+    showStatus(`❌ Error exporting JSON: ${error.message}`, true);
+    console.error("JSON export error:", error);
+  }
 }
 
 // Initialize
@@ -1080,6 +1167,8 @@ window.exportToExcel = exportToExcel;
 window.exportToPDF = exportToPDF;
 window.exportAllData = exportAllData;
 window.setExportRange = setExportRange;
+window.refreshHistory = refreshHistory;
+window.viewDate = viewDate;
 </script>
 </body>
 </html>
