@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Bus Trip Hisab</title>
+
+<style>
+body{
+  margin:0;
+  font-family:system-ui,Segoe UI;
+  background:#eef2f5;
+  color:#222;
+}
+.container{
+  max-width:1100px;
+  margin:auto;
+  padding:25px;
+}
+h1{margin-bottom:4px}
+.date{color:#555;margin-bottom:20px}
+
+.card{
+  background:#fff;
+  border-radius:12px;
+  padding:18px;
+  margin-bottom:18px;
+  box-shadow:0 4px 14px rgba(0,0,0,.08);
+}
+
+.stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:15px;
+}
+.stat{
+  padding:16px;
+  border-radius:10px;
+  text-align:center;
+}
+.stat h3{margin:0;font-size:16px;color:#555}
+.stat div{font-size:30px;font-weight:700}
+
+.jor{border-left:6px solid #1976d2}
+.bijor{border-left:6px solid #f57c00}
+.total{border-left:6px solid #388e3c}
+
+.lists{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+}
+
+.list-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:8px;
+}
+
+button{
+  padding:6px 12px;
+  border-radius:6px;
+  border:1px solid #ccc;
+  background:#f7f7f7;
+  cursor:pointer;
+}
+button:hover{background:#eee}
+
+ul{
+  list-style:none;
+  padding:0;
+  max-height:260px;
+  overflow:auto;
+}
+li{
+  padding:7px 10px;
+  border-bottom:1px solid #eee;
+  font-family:monospace;
+}
+
+textarea,input{
+  width:100%;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  font-size:14px;
+}
+.main-btn{
+  margin-top:10px;
+  background:#1976d2;
+  color:#fff;
+  border:none;
+}
+.main-btn:hover{opacity:.9}
+
+.clear-btn{
+  background:#d32f2f;
+  color:#fff;
+  border:none;
+}
+
+@media(max-width:800px){
+  .stats,.lists{grid-template-columns:1fr}
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>🚌 Bus Trip Hisab</h1>
+<div class="date">Today: <span id="today"></span></div>
+
+<!-- STATS -->
+<div class="card stats">
+  <div class="stat jor">
+    <h3>Jor Trips</h3>
+    <div id="jorCount">0</div>
+  </div>
+  <div class="stat bijor">
+    <h3>Bijor Trips</h3>
+    <div id="bijorCount">0</div>
+  </div>
+  <div class="stat total">
+    <h3>Total</h3>
+    <div id="totalCount">0</div>
+  </div>
+</div>
+
+<!-- LISTS -->
+<div class="card lists">
+  <div>
+    <div class="list-header">
+      <strong>Jor Trips</strong>
+      <button onclick="copyList('jor')">Copy</button>
+    </div>
+    <ul id="jorList"></ul>
+  </div>
+
+  <div>
+    <div class="list-header">
+      <strong>Bijor Trips</strong>
+      <button onclick="copyList('bijor')">Copy</button>
+    </div>
+    <ul id="bijorList"></ul>
+  </div>
+</div>
+
+<!-- BULK -->
+<div class="card">
+  <strong>Paste Bulk Trip Text</strong>
+  <textarea id="bulk"></textarea>
+  <button class="main-btn" onclick="processBulk()">Process</button>
+</div>
+
+<!-- SINGLE -->
+<div class="card">
+  <strong>Add Single Trip</strong>
+  <input id="single" placeholder="44-CHA-KUA">
+  <button class="main-btn" onclick="addSingle()">Add</button>
+</div>
+
+<!-- CLEAR -->
+<div class="card">
+  <button class="clear-btn" onclick="clearToday()">Clear Today Data</button>
+</div>
+
+</div>
+
+<script>
+const today = new Date().toISOString().split("T")[0];
+document.getElementById("today").innerText = today;
+
+const bulkInput = document.getElementById("bulk");
+const singleInput = document.getElementById("single");
+const jorList = document.getElementById("jorList");
+const bijorList = document.getElementById("bijorList");
+
+let data = JSON.parse(localStorage.getItem("tripData")) || {};
+if(!data[today]) data[today] = { jor:[], bijor:[] };
+
+function save(){
+  localStorage.setItem("tripData", JSON.stringify(data));
+}
+
+function addTrip(trip){
+  const num = parseInt(trip.split("-")[0]);
+  const side = num % 2 === 0 ? "jor" : "bijor";
+  if(!data[today][side].includes(trip)){
+    data[today][side].push(trip);
+    save();
+  }
+}
+
+function processBulk(){
+  const matches = bulkInput.value.match(/\d{2}-[A-Z]{3}-[A-Z]{3}/g) || [];
+  matches.forEach(addTrip);
+  bulkInput.value = "";
+  render();
+}
+
+function addSingle(){
+  const t = singleInput.value.trim();
+  if(/^\d{2}-[A-Z]{3}-[A-Z]{3}$/.test(t)){
+    addTrip(t);
+  }
+  singleInput.value = "";
+  render();
+}
+
+function copyList(type){
+  const text = data[today][type].join("\n");
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  document.body.removeChild(ta);
+  alert("Copied successfully");
+}
+
+function clearToday(){
+  if(confirm("Clear today data?")){
+    data[today] = { jor:[], bijor:[] };
+    save();
+    render();
+  }
+}
+
+function render(){
+  jorList.innerHTML = data[today].jor.map(t=>`<li>${t}</li>`).join("");
+  bijorList.innerHTML = data[today].bijor.map(t=>`<li>${t}</li>`).join("");
+  document.getElementById("jorCount").innerText = data[today].jor.length;
+  document.getElementById("bijorCount").innerText = data[today].bijor.length;
+  document.getElementById("totalCount").innerText =
+    data[today].jor.length + data[today].bijor.length;
+}
+
+render();
+</script>
+</body>
+</html>
